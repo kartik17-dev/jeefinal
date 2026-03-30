@@ -101,7 +101,7 @@ export default function App() {
         axios.get('/api/logs')
       ]);
       setStatus(statusRes.data);
-      setLogs(logsRes.data);
+      setLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -229,7 +229,7 @@ export default function App() {
       )}
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Activity className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl font-bold tracking-tight">JEE Main Tracker</h1>
@@ -242,7 +242,7 @@ export default function App() {
               Visit NTA Website &rarr;
             </a>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 text-sm text-slate-500 hidden sm:flex">
               <Clock className="h-4 w-4" />
               <span>Last checked: {status?.lastChecked ? formatInTimeZone(new Date(status.lastChecked), 'Asia/Kolkata', 'MMM d, h:mm:ss a') + ' IST' : 'Never'}</span>
@@ -429,7 +429,7 @@ export default function App() {
             )}
           </div>
         </div>
-        <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto" loop />
+        <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto" loop />
       </main>
 
       {/* Breaking News Marquee */}

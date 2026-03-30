@@ -130,8 +130,12 @@ async function startServer() {
             });
             await webpush.sendNotification(subscription, payload);
             console.log('Single device test notification sent successfully.');
-          } catch (e) {
+          } catch (e: any) {
             console.error('Single device test notification failed', e);
+            if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 401 || e.statusCode === 403) {
+              throw new Error('SUBSCRIPTION_INVALID');
+            }
+            throw e;
           }
         } else {
           // Fallback to broadcast if no subscription provided
@@ -140,11 +144,25 @@ async function startServer() {
       };
 
       if (delay > 0) {
-        setTimeout(sendTestPush, delay * 1000);
+        setTimeout(async () => {
+          try {
+            await sendTestPush();
+          } catch (e) {
+            console.error('Delayed test push failed:', e);
+          }
+        }, delay * 1000);
         res.json({ success: true, message: `Test notification scheduled in ${delay} seconds` });
       } else {
-        await sendTestPush();
-        res.json({ success: true, message: 'Test notification sent' });
+        try {
+          await sendTestPush();
+          res.json({ success: true, message: 'Test notification sent' });
+        } catch (e: any) {
+          if (e.message === 'SUBSCRIPTION_INVALID') {
+            res.status(400).json({ error: 'SUBSCRIPTION_INVALID' });
+          } else {
+            res.status(500).json({ error: 'Failed to send test notification' });
+          }
+        }
       }
     } catch (error) {
       console.error('Test notification failed:', error);
