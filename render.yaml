@@ -1,0 +1,51 @@
+{
+  "version": "1",
+  "services": [
+    {
+      "type": "web",
+      "name": "jee-main-tracker",
+      "env": "node",
+      "buildCommand": "npm install && npm run build",
+      "startCommand": "npm start",
+      "envVars": [
+        {
+          "key": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "key": "TELEGRAM_BOT_TOKEN",
+          "sync": false
+        },
+        {
+          "key": "TELEGRAM_CHAT_ID",
+          "sync": false
+        },
+        {
+          "key": "EMAIL_HOST",
+          "sync": false
+        },
+        {
+          "key": "EMAIL_PORT",
+          "value": "587"
+        },
+        {
+          "key": "EMAIL_USER",
+          "sync": false
+        },
+        {
+          "key": "EMAIL_PASS",
+          "sync": false
+        },
+        {
+          "key": "EMAIL_TO",
+          "sync": false
+        }
+      ],
+      "disk": {
+        "name": "data",
+        "mountPath": "/opt/render/project/src/data",
+        "sizeGB": 1
+      }
+    }
+  ]
+}

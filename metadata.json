@@ -1,0 +1,5 @@
+{
+  "name": "JEE Main Tracker",
+  "description": "Monitors the official JEE Main website for Admit Card, Response Sheet, and Result updates.",
+  "requestFramePermissions": []
+}
