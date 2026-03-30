@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+@keyframes marquee-ltr {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100vw);
+  }
+}
+
+.animate-marquee-ltr {
+  animation: marquee-ltr 12s linear infinite;
+}

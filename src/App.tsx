@@ -27,6 +27,9 @@ export default function App() {
   const [testingPush, setTestingPush] = useState(false);
   const [testDelay, setTestDelay] = useState(0);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [showTruth, setShowTruth] = useState(true);
+  const [audioDelay, setAudioDelay] = useState(0);
+  const [schedulingAudio, setSchedulingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevStatusRef = useRef<Status | null>(null);
 
@@ -123,7 +126,20 @@ export default function App() {
   }, [status]);
 
   const playAudioAlert = () => {
+    if (audioDelay > 0) {
+      setSchedulingAudio(true);
+      setTimeout(() => {
+        setSchedulingAudio(false);
+        triggerAudio();
+      }, audioDelay * 1000);
+    } else {
+      triggerAudio();
+    }
+  };
+
+  const triggerAudio = () => {
     if (audioRef.current) {
+      audioRef.current.volume = 1.0; // Maximize volume
       audioRef.current.currentTime = 0;
       audioRef.current.play().then(() => {
         setIsPlayingAudio(true);
@@ -157,15 +173,31 @@ export default function App() {
   const handleTestNotification = async () => {
     setTestingPush(true);
     try {
-      await axios.post('/api/test-notification', { delay: testDelay });
+      let sub = null;
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const reg = await navigator.serviceWorker.ready;
+        sub = await reg.pushManager.getSubscription();
+      }
+
+      await axios.post('/api/test-notification', { delay: testDelay, subscription: sub });
       if (testDelay > 0) {
         alert(`Test notification scheduled! It will arrive in ${testDelay} seconds. You can minimize your browser now to see how it looks on your desktop.`);
       } else {
         alert('Test notification sent! It should arrive shortly.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send test notification:', error);
-      alert('Failed to send test notification. Check console for details.');
+      if (error.response?.data?.error === 'SUBSCRIPTION_INVALID') {
+        alert('Your push subscription expired because the server keys changed. We are resetting it now. Please click "Enable Alerts" again.');
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          const reg = await navigator.serviceWorker.ready;
+          const existingSub = await reg.pushManager.getSubscription();
+          if (existingSub) await existingSub.unsubscribe();
+        }
+        setPushEnabled(false);
+      } else {
+        alert('Failed to send test notification. Check console for details.');
+      }
     } finally {
       setTestingPush(false);
     }
@@ -180,7 +212,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
       {isPlayingAudio && (
         <div className="bg-red-600 text-white px-4 py-3 shadow-md flex items-center justify-center gap-4 sticky top-0 z-50">
           <div className="flex items-center gap-2 font-bold animate-pulse">
@@ -215,13 +247,50 @@ export default function App() {
               <Clock className="h-4 w-4" />
               <span>Last checked: {status?.lastChecked ? formatInTimeZone(new Date(status.lastChecked), 'Asia/Kolkata', 'MMM d, h:mm:ss a') + ' IST' : 'Never'}</span>
             </div>
-            <button
-              onClick={playAudioAlert}
-              title="Test Audio Alert"
-              className="inline-flex items-center justify-center p-2 text-sm font-medium rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
-            >
-              <Volume2 className="h-4 w-4" />
-            </button>
+            
+            {showTruth ? (
+              <button
+                onClick={() => setShowTruth(false)}
+                className="inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-md bg-red-100 text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+              >
+                HIDE THE TRUTH
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowTruth(true)}
+                className="inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-md bg-green-100 text-green-700 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              >
+                SHOW TRUTH
+              </button>
+            )}
+
+            <div className="flex items-center bg-purple-50 rounded-md border border-purple-200 p-1">
+              <select
+                value={audioDelay}
+                onChange={(e) => setAudioDelay(Number(e.target.value))}
+                className="bg-transparent text-sm text-purple-800 font-medium focus:outline-none cursor-pointer px-2"
+                title="Audio Delay"
+              >
+                <option value={0}>Now</option>
+                <option value={5}>In 5s</option>
+                <option value={15}>In 15s</option>
+                <option value={30}>In 30s</option>
+              </select>
+              <div className="w-px h-4 bg-purple-200 mx-1"></div>
+              <button
+                onClick={playAudioAlert}
+                disabled={schedulingAudio}
+                title="Test Audio Alert"
+                className="inline-flex items-center justify-center p-1.5 text-purple-700 hover:bg-purple-200 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 transition-colors"
+              >
+                {schedulingAudio ? (
+                  <Clock className="h-4 w-4 animate-pulse" />
+                ) : (
+                  <Volume2 className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+
             <button
               onClick={handleManualCheck}
               disabled={checking}
@@ -233,8 +302,16 @@ export default function App() {
             {pushEnabled ? (
               <div className="flex items-center gap-2">
                 <button
-                  disabled
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-green-100 text-green-700 cursor-default"
+                  onClick={async () => {
+                    if (window.confirm('Do you want to reset your notification subscription? Use this if notifications stopped working.')) {
+                      const reg = await navigator.serviceWorker.ready;
+                      const sub = await reg.pushManager.getSubscription();
+                      if (sub) await sub.unsubscribe();
+                      setPushEnabled(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-green-100 text-green-700 hover:bg-green-200 transition-colors cursor-pointer"
+                  title="Click to reset subscription"
                 >
                   <Bell className="h-4 w-4" />
                   Notifications On
@@ -354,6 +431,15 @@ export default function App() {
         </div>
         <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto" loop />
       </main>
+
+      {/* Breaking News Marquee */}
+      {showTruth && (
+        <div className="fixed bottom-0 left-0 w-full bg-red-600 text-white font-bold py-2 overflow-hidden z-50 border-t-4 border-red-800">
+          <div className="whitespace-nowrap inline-block animate-marquee-ltr text-lg tracking-widest">
+            🚨 BREAKING NEWS ANTASH SHARMA HAS CHHOTA LUN 🚨
+          </div>
+        </div>
+      )}
     </div>
   );
 }

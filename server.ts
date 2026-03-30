@@ -114,22 +114,36 @@ async function startServer() {
 
   app.post('/api/test-notification', async (req, res) => {
     try {
-      const { delay = 0 } = req.body || {};
+      const { delay = 0, subscription } = req.body || {};
       const { sendNotification } = await import('./src/server/notifications.js');
       
       const realMessage = '🚨 JEE Main Admit Card may have been released!\n\nFound: "admit card"\n\nCheck the official website now: https://jeemain.nta.nic.in/';
 
-      if (delay > 0) {
-        setTimeout(async () => {
+      const sendTestPush = async () => {
+        if (subscription) {
+          // Send to single device
           try {
-            await sendNotification(realMessage);
+            const payload = JSON.stringify({
+              title: 'JEE Main Tracker Update',
+              body: realMessage.replace(/\*/g, ''),
+              icon: '/vite.svg'
+            });
+            await webpush.sendNotification(subscription, payload);
+            console.log('Single device test notification sent successfully.');
           } catch (e) {
-            console.error('Delayed notification failed', e);
+            console.error('Single device test notification failed', e);
           }
-        }, delay * 1000);
+        } else {
+          // Fallback to broadcast if no subscription provided
+          await sendNotification(realMessage);
+        }
+      };
+
+      if (delay > 0) {
+        setTimeout(sendTestPush, delay * 1000);
         res.json({ success: true, message: `Test notification scheduled in ${delay} seconds` });
       } else {
-        await sendNotification(realMessage);
+        await sendTestPush();
         res.json({ success: true, message: 'Test notification sent' });
       }
     } catch (error) {
