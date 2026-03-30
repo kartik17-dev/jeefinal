@@ -16,13 +16,39 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 
+const vapidPath = path.join(process.cwd(), 'data', 'vapid.json');
+
+if (!vapidPublicKey || !vapidPrivateKey) {
+  try {
+    if (fs.existsSync(vapidPath)) {
+      const vapidData = JSON.parse(fs.readFileSync(vapidPath, 'utf8'));
+      vapidPublicKey = vapidData.publicKey;
+      vapidPrivateKey = vapidData.privateKey;
+      console.log('Loaded VAPID keys from data/vapid.json');
+    }
+  } catch (err) {
+    console.error('Error reading vapid.json:', err);
+  }
+}
+
 if (!vapidPublicKey || !vapidPrivateKey) {
   console.warn("\n===============================================================");
-  console.warn("⚠️ VAPID KEYS NOT FOUND IN ENVIRONMENT VARIABLES ⚠️");
+  console.warn("⚠️ VAPID KEYS NOT FOUND IN ENVIRONMENT VARIABLES OR FILE ⚠️");
   console.warn("Generating temporary keys. Push notifications will break if the server restarts!");
   const keys = webpush.generateVAPIDKeys();
   vapidPublicKey = keys.publicKey;
   vapidPrivateKey = keys.privateKey;
+  
+  try {
+    if (!fs.existsSync(path.join(process.cwd(), 'data'))) {
+      fs.mkdirSync(path.join(process.cwd(), 'data'), { recursive: true });
+    }
+    fs.writeFileSync(vapidPath, JSON.stringify(keys));
+    console.log('Saved generated VAPID keys to data/vapid.json');
+  } catch (err) {
+    console.error('Failed to save vapid.json:', err);
+  }
+
   console.warn(`\nPlease add these to your Render Environment Variables:`);
   console.warn(`VAPID_PUBLIC_KEY=${vapidPublicKey}`);
   console.warn(`VAPID_PRIVATE_KEY=${vapidPrivateKey}`);
