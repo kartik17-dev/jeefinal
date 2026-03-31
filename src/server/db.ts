@@ -29,7 +29,8 @@ export async function initDB() {
       resultReleased BOOLEAN DEFAULT 0,
       lastChecked DATETIME DEFAULT CURRENT_TIMESTAMP,
       lastHtmlSnapshot TEXT,
-      knownLinks TEXT DEFAULT '[]'
+      knownLinks TEXT DEFAULT '[]',
+      lastNtaUpdate TEXT
     );
 
     CREATE TABLE IF NOT EXISTS logs (
@@ -48,12 +49,19 @@ export async function initDB() {
     );
   `);
 
+  // Add lastNtaUpdate column if it doesn't exist (for existing databases)
+  try {
+    sqliteDb.exec(`ALTER TABLE status ADD COLUMN lastNtaUpdate TEXT`);
+  } catch (e) {
+    // Column likely already exists, ignore
+  }
+
   // Initialize status row if not exists
   const row = sqliteDb.prepare('SELECT * FROM status WHERE id = 1').get();
   if (!row) {
     sqliteDb.prepare(`
-      INSERT INTO status (id, admitCardReleased, responseSheetReleased, resultReleased, lastHtmlSnapshot, knownLinks)
-      VALUES (1, 0, 0, 0, '', '[]')
+      INSERT INTO status (id, admitCardReleased, responseSheetReleased, resultReleased, lastHtmlSnapshot, knownLinks, lastNtaUpdate)
+      VALUES (1, 0, 0, 0, '', '[]', '')
     `).run();
   }
 }
@@ -69,6 +77,7 @@ export async function updateStatus(updates: {
   resultReleased?: boolean;
   lastHtmlSnapshot?: string;
   knownLinks?: string;
+  lastNtaUpdate?: string;
 }) {
   await initDB();
   const current = await getStatus() as any;
@@ -78,6 +87,7 @@ export async function updateStatus(updates: {
   const result = updates.resultReleased !== undefined ? updates.resultReleased : current.resultReleased;
   const snapshot = updates.lastHtmlSnapshot !== undefined ? updates.lastHtmlSnapshot : current.lastHtmlSnapshot;
   const knownLinks = updates.knownLinks !== undefined ? updates.knownLinks : current.knownLinks;
+  const lastNtaUpdate = updates.lastNtaUpdate !== undefined ? updates.lastNtaUpdate : current.lastNtaUpdate;
 
   sqliteDb.prepare(`
     UPDATE status 
@@ -86,9 +96,10 @@ export async function updateStatus(updates: {
         resultReleased = ?, 
         lastHtmlSnapshot = ?,
         knownLinks = ?,
+        lastNtaUpdate = ?,
         lastChecked = ?
     WHERE id = 1
-  `).run(admitCard ? 1 : 0, responseSheet ? 1 : 0, result ? 1 : 0, snapshot, knownLinks, new Date().toISOString());
+  `).run(admitCard ? 1 : 0, responseSheet ? 1 : 0, result ? 1 : 0, snapshot, knownLinks, lastNtaUpdate, new Date().toISOString());
 }
 
 export async function addLog(type: string, message: string, details: string = '') {

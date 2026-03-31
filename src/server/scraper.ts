@@ -39,10 +39,17 @@ export async function checkWebsite() {
       }
     });
 
+    // Extract "Last Updated" text
+    let lastUpdatedText = '';
+    const bodyTextRaw = $('body').text().replace(/\s+/g, ' ');
+    const lastUpdatedMatch = bodyTextRaw.match(/last updated(?: on)?\s*[:\-]?\s*([0-9a-zA-Z\s\-,]+)/i);
+    if (lastUpdatedMatch && lastUpdatedMatch[1]) {
+      // Limit length to avoid capturing too much if regex matches weirdly
+      lastUpdatedText = lastUpdatedMatch[1].trim().substring(0, 50);
+    }
+
     const currentStatus = await getStatus() as any;
-    let updates: any = {
-      lastHtmlSnapshot: html.substring(0, 10000) // Store a snapshot for diffing if needed
-    };
+    let updates: any = {};
     let changesDetected = false;
     let notificationMessage = '';
 
@@ -53,15 +60,27 @@ export async function checkWebsite() {
         knownLinks = JSON.parse(currentStatus.knownLinks);
       }
     } catch (e) {
-      console.error('Failed to parse knownLinks', e);
+      console.error('Failed to parse known data', e);
     }
 
     // Baseline establishment: If we have no known links, save current links and exit
     if (knownLinks.length === 0 && links.length > 0) {
       updates.knownLinks = JSON.stringify(links);
+      if (lastUpdatedText) updates.lastNtaUpdate = lastUpdatedText;
       await updateStatus(updates);
-      await addLog('SYSTEM', 'Baseline established. Monitoring for new links.', `Saved ${links.length} initial links.`);
+      await addLog('SYSTEM', 'Baseline established. Monitoring for new links.', `Saved ${links.length} links.`);
       return;
+    }
+
+    // Check for "Last Updated" changes
+    if (lastUpdatedText && currentStatus.lastNtaUpdate && currentStatus.lastNtaUpdate !== lastUpdatedText) {
+      updates.lastNtaUpdate = lastUpdatedText;
+      changesDetected = true;
+      notificationMessage += `🚨 **NTA Website Updated!**\nThe "Last Updated" timestamp on the website changed to: ${lastUpdatedText}\n\n`;
+      await addLog('UPDATE', 'NTA Website "Last Updated" changed', `New date: ${lastUpdatedText}`);
+    } else if (lastUpdatedText && !currentStatus.lastNtaUpdate) {
+      // Just set it if it was empty previously but not baseline
+      updates.lastNtaUpdate = lastUpdatedText;
     }
 
     // Find new links that were not in the baseline
@@ -115,7 +134,7 @@ export async function checkWebsite() {
         await addLog('INFO', `New link detected: ${link.text}`, details);
 
         // Check Admit Card
-        if (!currentStatus.admitCardReleased && checkKeywordsSingle(link, ADMIT_CARD_KEYWORDS)) {
+        if (!currentStatus.admitCardReleased && !updates.admitCardReleased && checkKeywordsSingle(link, ADMIT_CARD_KEYWORDS)) {
           updates.admitCardReleased = true;
           changesDetected = true;
           notificationMessage += `🚨 **Admit Card Released!**\n[${link.text}](${link.href})\nSnippet: ${snippet}\n\n`;
@@ -123,7 +142,7 @@ export async function checkWebsite() {
         }
 
         // Check Response Sheet
-        if (!currentStatus.responseSheetReleased && checkKeywordsSingle(link, RESPONSE_SHEET_KEYWORDS)) {
+        if (!currentStatus.responseSheetReleased && !updates.responseSheetReleased && checkKeywordsSingle(link, RESPONSE_SHEET_KEYWORDS)) {
           updates.responseSheetReleased = true;
           changesDetected = true;
           notificationMessage += `🚨 **Response Sheet / Answer Key Released!**\n[${link.text}](${link.href})\nSnippet: ${snippet}\n\n`;
@@ -131,7 +150,7 @@ export async function checkWebsite() {
         }
 
         // Check Result
-        if (!currentStatus.resultReleased && checkKeywordsSingle(link, RESULT_KEYWORDS)) {
+        if (!currentStatus.resultReleased && !updates.resultReleased && checkKeywordsSingle(link, RESULT_KEYWORDS)) {
           updates.resultReleased = true;
           changesDetected = true;
           notificationMessage += `🚨 **JEE Main Result Declared!**\n[${link.text}](${link.href})\nSnippet: ${snippet}\n\n`;

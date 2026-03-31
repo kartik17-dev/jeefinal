@@ -27,7 +27,7 @@ export default function App() {
   const [testingPush, setTestingPush] = useState(false);
   const [testDelay, setTestDelay] = useState(0);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [showTruth, setShowTruth] = useState(true);
+  const [showTruth, setShowTruth] = useState(false);
   const [audioDelay, setAudioDelay] = useState(0);
   const [schedulingAudio, setSchedulingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -248,21 +248,6 @@ export default function App() {
               <span>Last checked: {status?.lastChecked ? formatInTimeZone(new Date(status.lastChecked), 'Asia/Kolkata', 'MMM d, h:mm:ss a') + ' IST' : 'Never'}</span>
             </div>
             
-            {showTruth ? (
-              <button
-                onClick={() => setShowTruth(false)}
-                className="inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-md bg-red-100 text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-              >
-                HIDE THE TRUTH
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowTruth(true)}
-                className="inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-md bg-green-100 text-green-700 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-              >
-                SHOW TRUTH
-              </button>
-            )}
 
             <div className="flex items-center bg-purple-50 rounded-md border border-purple-200 p-1">
               <select
@@ -440,6 +425,14 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Secret toggle button */}
+      <button
+        onClick={() => setShowTruth(!showTruth)}
+        className="fixed bottom-3 right-4 text-xs text-slate-400 hover:text-slate-600 transition-colors z-[60] cursor-pointer font-mono select-none"
+      >
+        v1.0.4
+      </button>
     </div>
   );
 }
