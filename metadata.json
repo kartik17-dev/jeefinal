@@ -1,5 +1,5 @@
 {
-  "name": "JEE Main Tracker",
-  "description": "Monitors the official JEE Main website for Admit Card, Response Sheet, and Result updates.",
+  "name": "CBSE Results Tracker",
+  "description": "Monitors the official CBSE Results website for any updates and changes.",
   "requestFramePermissions": []
 }
