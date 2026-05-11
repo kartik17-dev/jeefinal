@@ -3,16 +3,16 @@ import * as cheerio from 'cheerio';
 import { getStatus, updateStatus, addLog } from './db.js';
 import { sendNotification } from './notifications.js';
 
-const JEE_MAIN_URL = 'https://jeemain.nta.nic.in/';
+const TARGET_URL = 'https://lighthearted-banoffee-9b43b2.netlify.app/';
 
-// Keywords to look for
+// Keywords to look for (keeping these for compatibility, though any change will trigger)
 const ADMIT_CARD_KEYWORDS = ['admit card', 'download admit card', 'hall ticket'];
 const RESPONSE_SHEET_KEYWORDS = ['response sheet', 'answer key', 'provisional answer key', 'challenge answer key'];
 const RESULT_KEYWORDS = ['result', 'score card', 'percentile', 'declared result'];
 
 export async function checkWebsite() {
   try {
-    const response = await axios.get(JEE_MAIN_URL, {
+    const response = await axios.get(TARGET_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -27,9 +27,57 @@ export async function checkWebsite() {
     
     // Remove scripts and styles for cleaner text extraction
     $('script, style, noscript').remove();
-    const textContent = $('body').text().toLowerCase();
+    const textContent = $('body').text().replace(/\s+/g, ' ').trim().toLowerCase();
     
-    // Extract all links
+    const currentStatus = await getStatus() as any;
+    let updates: any = {};
+    let changesDetected = false;
+    let notificationMessage = '';
+
+    // Baseline establishment: If we have no lastHtmlSnapshot, save current text content and exit
+    if (!currentStatus.lastHtmlSnapshot) {
+      await updateStatus({ lastHtmlSnapshot: textContent });
+      await addLog('SYSTEM', 'Baseline established. Monitoring for any changes.', `Site length: ${textContent.length} chars.`);
+      return;
+    }
+
+    // Check for any content change
+    if (textContent !== currentStatus.lastHtmlSnapshot) {
+      changesDetected = true;
+      updates.lastHtmlSnapshot = textContent;
+      updates.lastChangeDetectedAt = new Date().toISOString();
+      
+      // Determine what changed specifically if possible (keyword check)
+      const isAdmitCard = !currentStatus.admitCardReleased && ADMIT_CARD_KEYWORDS.some(k => textContent.includes(k));
+      const isResponseSheet = !currentStatus.responseSheetReleased && RESPONSE_SHEET_KEYWORDS.some(k => textContent.includes(k));
+      const isResult = !currentStatus.resultReleased && RESULT_KEYWORDS.some(k => textContent.includes(k));
+
+      if (isAdmitCard) updates.admitCardReleased = true;
+      if (isResponseSheet) updates.responseSheetReleased = true;
+      
+      // If any change occurs, we trigger resultReleased to play the sound in the UI
+      // and send a general update notification
+      if (!currentStatus.resultReleased) {
+        updates.resultReleased = true;
+      } else {
+        // If it's already true, we might want to toggle it or just keep it true
+        // But the user said "once u detect any change play the sound"
+        // The App.tsx checks for false -> true transition.
+        // So let's reset it if it was true so it can trigger again? 
+        // Or better, the UI should handle "re-triggering" if possible.
+        // For now, let's just make sure it's true.
+      }
+
+      notificationMessage = `🚨 **Website Change Detected!**\n\nThe content of the monitored site has changed.\n\n`;
+      
+      if (isAdmitCard) notificationMessage += `🔹 Possible Admit Card update detected.\n`;
+      if (isResponseSheet) notificationMessage += `🔹 Possible Response Sheet update detected.\n`;
+      if (isResult) notificationMessage += `🔹 Possible Result update detected.\n`;
+
+      await addLog('UPDATE', 'Website content change detected', `Content length changed from ${currentStatus.lastHtmlSnapshot.length} to ${textContent.length}`);
+    }
+
+    // Extract links for logging (even if no change, or as part of change info)
     const links: { text: string; href: string }[] = [];
     $('a').each((_, el) => {
       const text = $(el).text().trim().toLowerCase();
@@ -39,139 +87,18 @@ export async function checkWebsite() {
       }
     });
 
-    // Extract "Last Updated" text
-    let lastUpdatedText = '';
-    const bodyTextRaw = $('body').text().replace(/\s+/g, ' ');
-    const lastUpdatedMatch = bodyTextRaw.match(/last updated(?: on)?\s*[:\-]?\s*([0-9a-zA-Z\s\-,]+)/i);
-    if (lastUpdatedMatch && lastUpdatedMatch[1]) {
-      // Limit length to avoid capturing too much if regex matches weirdly
-      lastUpdatedText = lastUpdatedMatch[1].trim().substring(0, 50);
-    }
-
-    const currentStatus = await getStatus() as any;
-    let updates: any = {};
-    let changesDetected = false;
-    let notificationMessage = '';
-
-    // Parse known links
-    let knownLinks: { text: string; href: string }[] = [];
-    try {
-      if (currentStatus.knownLinks) {
-        knownLinks = JSON.parse(currentStatus.knownLinks);
-      }
-    } catch (e) {
-      console.error('Failed to parse known data', e);
-    }
-
-    // Baseline establishment: If we have no known links, save current links and exit
-    if (knownLinks.length === 0 && links.length > 0) {
-      updates.knownLinks = JSON.stringify(links);
-      if (lastUpdatedText) updates.lastNtaUpdate = lastUpdatedText;
-      await updateStatus(updates);
-      await addLog('SYSTEM', 'Baseline established. Monitoring for new links.', `Saved ${links.length} links.`);
-      return;
-    }
-
-    // Check for "Last Updated" changes
-    if (lastUpdatedText && currentStatus.lastNtaUpdate && currentStatus.lastNtaUpdate !== lastUpdatedText) {
-      updates.lastNtaUpdate = lastUpdatedText;
-      changesDetected = true;
-      notificationMessage += `🚨 **NTA Website Updated!**\nThe "Last Updated" timestamp on the website changed to: ${lastUpdatedText}\n\n`;
-      await addLog('UPDATE', 'NTA Website "Last Updated" changed', `New date: ${lastUpdatedText}`);
-    } else if (lastUpdatedText && !currentStatus.lastNtaUpdate) {
-      // Just set it if it was empty previously but not baseline
-      updates.lastNtaUpdate = lastUpdatedText;
-    }
-
-    // Find new links that were not in the baseline
-    const newLinks = links.filter(cl => 
-      !knownLinks.some(kl => kl.href === cl.href && kl.text === cl.text)
-    );
-
-    if (newLinks.length > 0) {
-      // We have new links! Let's check them.
-      for (const link of newLinks) {
-        let snippet = 'Snippet unavailable.';
-        try {
-          // Resolve relative URLs to absolute
-          const absoluteUrl = new URL(link.href, JEE_MAIN_URL).href;
-          link.href = absoluteUrl;
-
-          if (absoluteUrl.startsWith('http') && !absoluteUrl.toLowerCase().endsWith('.pdf')) {
-            const linkRes = await axios.get(absoluteUrl, { 
-              timeout: 5000,
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-              }
-            });
-            
-            const contentType = linkRes.headers['content-type'] || '';
-            if (contentType.includes('text/html')) {
-              const $linkPage = cheerio.load(linkRes.data);
-              $linkPage('script, style, noscript').remove();
-              
-              let desc = $linkPage('meta[name="description"]').attr('content');
-              if (!desc) {
-                desc = $linkPage('p').first().text().trim();
-              }
-              if (!desc) {
-                desc = $linkPage('body').text().replace(/\s+/g, ' ').trim();
-              }
-              if (desc) {
-                snippet = desc.substring(0, 200) + (desc.length > 200 ? '...' : '');
-              }
-            } else {
-              snippet = `File type: ${contentType}`;
-            }
-          } else if (absoluteUrl.toLowerCase().endsWith('.pdf')) {
-            snippet = 'PDF Document';
-          }
-        } catch (err: any) {
-          snippet = `Could not fetch page content.`;
-        }
-
-        const details = `URL: ${link.href}\nSnippet: ${snippet}`;
-        await addLog('INFO', `New link detected: ${link.text}`, details);
-
-        // Check Admit Card
-        if (!currentStatus.admitCardReleased && !updates.admitCardReleased && checkKeywordsSingle(link, ADMIT_CARD_KEYWORDS)) {
-          updates.admitCardReleased = true;
-          changesDetected = true;
-          notificationMessage += `🚨 **Admit Card Released!**\n[${link.text}](${link.href})\nSnippet: ${snippet}\n\n`;
-          await addLog('UPDATE', 'Admit Card release detected', details);
-        }
-
-        // Check Response Sheet
-        if (!currentStatus.responseSheetReleased && !updates.responseSheetReleased && checkKeywordsSingle(link, RESPONSE_SHEET_KEYWORDS)) {
-          updates.responseSheetReleased = true;
-          changesDetected = true;
-          notificationMessage += `🚨 **Response Sheet / Answer Key Released!**\n[${link.text}](${link.href})\nSnippet: ${snippet}\n\n`;
-          await addLog('UPDATE', 'Response Sheet release detected', details);
-        }
-
-        // Check Result
-        if (!currentStatus.resultReleased && !updates.resultReleased && checkKeywordsSingle(link, RESULT_KEYWORDS)) {
-          updates.resultReleased = true;
-          changesDetected = true;
-          notificationMessage += `🚨 **JEE Main Result Declared!**\n[${link.text}](${link.href})\nSnippet: ${snippet}\n\n`;
-          await addLog('UPDATE', 'Result declaration detected', details);
-        }
-      }
-
-      // Update known links with the newly discovered ones
-      const updatedKnownLinks = [...knownLinks, ...newLinks];
-      updates.knownLinks = JSON.stringify(updatedKnownLinks);
-    }
+    // Update known links in DB
+    updates.knownLinks = JSON.stringify(links);
 
     // Update DB
     await updateStatus(updates);
     
     // Log successful check
-    if (!changesDetected && newLinks.length === 0) {
+    if (!changesDetected) {
       await addLog('CHECK', 'Website checked successfully, no new updates.');
-    } else if (changesDetected) {
+    } else {
       // Send notifications
-      notificationMessage += `\nCheck the official website: ${JEE_MAIN_URL}`;
+      notificationMessage += `\nCheck it out here: ${TARGET_URL}`;
       await sendNotification(notificationMessage);
     }
 

@@ -30,7 +30,8 @@ export async function initDB() {
       lastChecked DATETIME DEFAULT CURRENT_TIMESTAMP,
       lastHtmlSnapshot TEXT,
       knownLinks TEXT DEFAULT '[]',
-      lastNtaUpdate TEXT
+      lastNtaUpdate TEXT,
+      lastChangeDetectedAt DATETIME
     );
 
     CREATE TABLE IF NOT EXISTS logs (
@@ -49,12 +50,13 @@ export async function initDB() {
     );
   `);
 
-  // Add lastNtaUpdate column if it doesn't exist (for existing databases)
+  // Add columns if they don't exist
   try {
     sqliteDb.exec(`ALTER TABLE status ADD COLUMN lastNtaUpdate TEXT`);
-  } catch (e) {
-    // Column likely already exists, ignore
-  }
+  } catch (e) {}
+  try {
+    sqliteDb.exec(`ALTER TABLE status ADD COLUMN lastChangeDetectedAt DATETIME`);
+  } catch (e) {}
 
   // Initialize status row if not exists
   const row = sqliteDb.prepare('SELECT * FROM status WHERE id = 1').get();
@@ -78,6 +80,7 @@ export async function updateStatus(updates: {
   lastHtmlSnapshot?: string;
   knownLinks?: string;
   lastNtaUpdate?: string;
+  lastChangeDetectedAt?: string;
 }) {
   await initDB();
   const current = await getStatus() as any;
@@ -88,6 +91,7 @@ export async function updateStatus(updates: {
   const snapshot = updates.lastHtmlSnapshot !== undefined ? updates.lastHtmlSnapshot : current.lastHtmlSnapshot;
   const knownLinks = updates.knownLinks !== undefined ? updates.knownLinks : current.knownLinks;
   const lastNtaUpdate = updates.lastNtaUpdate !== undefined ? updates.lastNtaUpdate : current.lastNtaUpdate;
+  const lastChangeDetectedAt = updates.lastChangeDetectedAt !== undefined ? updates.lastChangeDetectedAt : current.lastChangeDetectedAt;
 
   sqliteDb.prepare(`
     UPDATE status 
@@ -97,9 +101,10 @@ export async function updateStatus(updates: {
         lastHtmlSnapshot = ?,
         knownLinks = ?,
         lastNtaUpdate = ?,
+        lastChangeDetectedAt = ?,
         lastChecked = ?
     WHERE id = 1
-  `).run(admitCard ? 1 : 0, responseSheet ? 1 : 0, result ? 1 : 0, snapshot, knownLinks, lastNtaUpdate, new Date().toISOString());
+  `).run(admitCard ? 1 : 0, responseSheet ? 1 : 0, result ? 1 : 0, snapshot, knownLinks, lastNtaUpdate, lastChangeDetectedAt, new Date().toISOString());
 }
 
 export async function addLog(type: string, message: string, details: string = '') {

@@ -8,6 +8,7 @@ interface Status {
   responseSheetReleased: boolean;
   resultReleased: boolean;
   lastChecked: string;
+  lastChangeDetectedAt?: string;
 }
 
 interface Log {
@@ -16,7 +17,7 @@ interface Log {
   type: string;
   message: string;
   details: string;
-}
+} //systumm
 
 export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -119,6 +120,10 @@ export default function App() {
     if (prevStatusRef.current && status) {
       // Play audio if resultReleased changes from false to true
       if (!prevStatusRef.current.resultReleased && status.resultReleased) {
+        playAudioAlert();
+      }
+      // Play audio if lastChangeDetectedAt changes (for any generic change)
+      if (status.lastChangeDetectedAt && status.lastChangeDetectedAt !== prevStatusRef.current.lastChangeDetectedAt) {
         playAudioAlert();
       }
     }
@@ -234,12 +239,12 @@ export default function App() {
             <Activity className="h-6 w-6 text-blue-600" />
             <h1 className="text-xl font-bold tracking-tight">JEE Main Tracker</h1>
             <a 
-              href="https://jeemain.nta.nic.in/" 
+              href="https://lighthearted-banoffee-9b43b2.netlify.app/" 
               target="_blank" 
               rel="noopener noreferrer"
               className="ml-4 text-sm font-medium text-blue-600 hover:text-blue-800 hidden sm:inline-block bg-blue-50 px-3 py-1 rounded-full"
             >
-              Visit NTA Website &rarr;
+              Visit Monitored Website &rarr;
             </a>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
@@ -344,19 +349,19 @@ export default function App() {
             title="Admit Card"
             icon={<FileText className="h-5 w-5" />}
             isReleased={status?.admitCardReleased}
-            description="Hall ticket for examination"
+            description="Status of Admit Card keywords"
           />
           <StatusCard
             title="Response Sheet"
             icon={<FileCheck className="h-5 w-5" />}
             isReleased={status?.responseSheetReleased}
-            description="Provisional answer key & responses"
+            description="Status of Answer Key keywords"
           />
           <StatusCard
             title="Result"
             icon={<Award className="h-5 w-5" />}
             isReleased={status?.resultReleased}
-            description="Final scores and percentiles"
+            description="Status of Result keywords"
           />
         </div>
 
@@ -463,12 +468,12 @@ function StatusCard({ title, icon, isReleased, description }: { title: string, i
       {isReleased && (
         <div className="mt-4 pt-4 border-t border-green-200/50">
           <a
-            href="https://jeemain.nta.nic.in/"
+            href="https://lighthearted-banoffee-9b43b2.netlify.app/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-green-700 hover:text-green-800 flex items-center gap-1"
           >
-            Go to official website &rarr;
+            Go to website &rarr;
           </a>
         </div>
       )}
