@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio';
 import { getStatus, updateStatus, addLog } from './db.js';
 import { sendNotification } from './notifications.js';
 
-const TARGET_URL = 'https://glistening-banoffee-25e862.netlify.app/';
+const TARGET_URL = 'https://results.cbse.nic.in/';
 
 // Keywords to look for (keeping these for compatibility, though any change will trigger)
 const ADMIT_CARD_KEYWORDS = ['admit card', 'download admit card', 'hall ticket'];

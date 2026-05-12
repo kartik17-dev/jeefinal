@@ -271,14 +271,14 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Activity className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold tracking-tight">Website Tracker</h1>
+            <h1 className="text-xl font-bold tracking-tight">CBSE Results Tracker</h1>
             <a 
-              href="https://glistening-banoffee-25e862.netlify.app/" 
+              href="https://results.cbse.nic.in/" 
               target="_blank" 
               rel="noopener noreferrer"
               className="ml-4 text-sm font-medium text-blue-600 hover:text-blue-800 hidden sm:inline-block bg-blue-50 px-3 py-1 rounded-full"
             >
-              Visit Monitored Website &rarr;
+              Visit CBSE Website &rarr;
             </a>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
@@ -521,7 +521,7 @@ function StatusCard({ title, icon, isReleased, description }: { title: string, i
       {isReleased && (
         <div className="mt-4 pt-4 border-t border-green-200/50">
           <a
-            href="https://glistening-banoffee-25e862.netlify.app/"
+            href="https://results.cbse.nic.in/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-green-700 hover:text-green-800 flex items-center gap-1"

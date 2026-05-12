@@ -128,14 +128,14 @@ async function startServer() {
       const { delay = 0, subscription } = req.body || {};
       const { sendNotification } = await import('./src/server/notifications.js');
       
-      const realMessage = '🚨 Website Change Detected!\n\nCheck the monitored website now: https://glistening-banoffee-25e862.netlify.app/';
+      const realMessage = '🚨 CBSE Results may have been declared!\n\nCheck the official website now: https://results.cbse.nic.in/';
 
       const sendTestPush = async () => {
         if (subscription) {
           // Send to single device
           try {
             const payload = JSON.stringify({
-              title: 'Website Tracker Update',
+              title: 'CBSE Results Tracker Update',
               body: realMessage.replace(/\*/g, ''),
               icon: '/vite.svg'
             });

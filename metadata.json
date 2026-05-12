@@ -1,5 +1,5 @@
 {
-  "name": "Website Tracker",
-  "description": "Monitors the specified website for any updates and changes.",
+  "name": "CBSE Results Tracker",
+  "description": "Monitors the official CBSE Results website for any updates and changes.",
   "requestFramePermissions": []
 }
