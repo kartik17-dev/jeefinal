@@ -31,7 +31,8 @@ export async function initDB() {
       lastHtmlSnapshot TEXT,
       knownLinks TEXT DEFAULT '[]',
       lastNtaUpdate TEXT,
-      lastChangeDetectedAt DATETIME
+      lastChangeDetectedAt DATETIME,
+      isTracking BOOLEAN DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS logs (
@@ -57,6 +58,9 @@ export async function initDB() {
   try {
     sqliteDb.exec(`ALTER TABLE status ADD COLUMN lastChangeDetectedAt DATETIME`);
   } catch (e) {}
+  try {
+    sqliteDb.exec(`ALTER TABLE status ADD COLUMN isTracking BOOLEAN DEFAULT 1`);
+  } catch (e) {}
 
   // Initialize status row if not exists
   const row = sqliteDb.prepare('SELECT * FROM status WHERE id = 1').get();
@@ -81,6 +85,7 @@ export async function updateStatus(updates: {
   knownLinks?: string;
   lastNtaUpdate?: string;
   lastChangeDetectedAt?: string;
+  isTracking?: boolean;
 }) {
   await initDB();
   const current = await getStatus() as any;
@@ -92,6 +97,7 @@ export async function updateStatus(updates: {
   const knownLinks = updates.knownLinks !== undefined ? updates.knownLinks : current.knownLinks;
   const lastNtaUpdate = updates.lastNtaUpdate !== undefined ? updates.lastNtaUpdate : current.lastNtaUpdate;
   const lastChangeDetectedAt = updates.lastChangeDetectedAt !== undefined ? updates.lastChangeDetectedAt : current.lastChangeDetectedAt;
+  const isTracking = updates.isTracking !== undefined ? updates.isTracking : (current.isTracking !== undefined ? current.isTracking : 1);
 
   sqliteDb.prepare(`
     UPDATE status 
@@ -102,9 +108,20 @@ export async function updateStatus(updates: {
         knownLinks = ?,
         lastNtaUpdate = ?,
         lastChangeDetectedAt = ?,
+        isTracking = ?,
         lastChecked = ?
     WHERE id = 1
-  `).run(admitCard ? 1 : 0, responseSheet ? 1 : 0, result ? 1 : 0, snapshot, knownLinks, lastNtaUpdate, lastChangeDetectedAt, new Date().toISOString());
+  `).run(
+    admitCard ? 1 : 0, 
+    responseSheet ? 1 : 0, 
+    result ? 1 : 0, 
+    snapshot, 
+    knownLinks, 
+    lastNtaUpdate, 
+    lastChangeDetectedAt, 
+    isTracking ? 1 : 0,
+    new Date().toISOString()
+  );
 }
 
 export async function addLog(type: string, message: string, details: string = '') {

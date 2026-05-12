@@ -12,6 +12,14 @@ const RESULT_KEYWORDS = ['result', 'score card', 'percentile', 'declared result'
 
 export async function checkWebsite() {
   try {
+    const currentStatus = await getStatus() as any;
+
+    // Skip if tracking is paused
+    if (currentStatus.isTracking === 0) {
+      // console.log('Tracking is paused. Skipping check.');
+      return;
+    }
+
     const response = await axios.get(TARGET_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -29,10 +37,10 @@ export async function checkWebsite() {
     $('script, style, noscript').remove();
     const textContent = $('body').text().replace(/\s+/g, ' ').trim().toLowerCase();
     
-    const currentStatus = await getStatus() as any;
     let updates: any = {};
     let changesDetected = false;
     let notificationMessage = '';
+    let shouldPauseTracking = false;
 
     // Baseline establishment: If we have no lastHtmlSnapshot, save current text content and exit
     if (!currentStatus.lastHtmlSnapshot) {
@@ -44,8 +52,10 @@ export async function checkWebsite() {
     // Check for any content change
     if (textContent !== currentStatus.lastHtmlSnapshot) {
       changesDetected = true;
+      shouldPauseTracking = true;
       updates.lastHtmlSnapshot = textContent;
       updates.lastChangeDetectedAt = new Date().toISOString();
+      updates.isTracking = false; // Stop tracking as requested
       
       // Determine what changed specifically if possible (keyword check)
       const isAdmitCard = !currentStatus.admitCardReleased && ADMIT_CARD_KEYWORDS.some(k => textContent.includes(k));

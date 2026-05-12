@@ -9,6 +9,7 @@ interface Status {
   resultReleased: boolean;
   lastChecked: string;
   lastChangeDetectedAt?: string;
+  isTracking?: boolean;
 }
 
 interface Log {
@@ -31,6 +32,7 @@ export default function App() {
   const [showTruth, setShowTruth] = useState(false);
   const [audioDelay, setAudioDelay] = useState(0);
   const [schedulingAudio, setSchedulingAudio] = useState(false);
+  const [resumingTracking, setResumingTracking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevStatusRef = useRef<Status | null>(null);
 
@@ -111,6 +113,18 @@ export default function App() {
   };
 
   useEffect(() => {
+    let interval: any;
+    if (isPlayingAudio) {
+      interval = setInterval(() => {
+        document.title = document.title === 'CBSE Result Tracker' ? '🚨 CHANGE DETECTED! 🚨' : 'CBSE Result Tracker';
+      }, 500);
+    } else {
+      document.title = 'CBSE Result Tracker';
+    }
+    return () => clearInterval(interval);
+  }, [isPlayingAudio]);
+
+  useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000); // Poll every 10s
     return () => clearInterval(interval);
@@ -126,9 +140,28 @@ export default function App() {
       if (status.lastChangeDetectedAt && status.lastChangeDetectedAt !== prevStatusRef.current.lastChangeDetectedAt) {
         playAudioAlert();
       }
+
+      // Auto-trigger alarm and stop tracking logic
+      // If server sent isTracking=false, and it was true, it means a change was detected
+      if (status.isTracking === false && prevStatusRef.current.isTracking !== false) {
+        playAudioAlert();
+      }
     }
     prevStatusRef.current = status;
   }, [status]);
+
+  const stopAudioAndResume = async () => {
+    stopAudioAlert();
+    setResumingTracking(true);
+    try {
+      await axios.post('/api/resume-tracking');
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to resume tracking:', error);
+    } finally {
+      setResumingTracking(false);
+    }
+  };
 
   const playAudioAlert = () => {
     if (audioDelay > 0) {
@@ -220,15 +253,16 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
       {isPlayingAudio && (
         <div className="bg-red-600 text-white px-4 py-3 shadow-md flex items-center justify-center gap-4 sticky top-0 z-50">
-          <div className="flex items-center gap-2 font-bold animate-pulse">
-            <BellRing className="h-5 w-5" />
-            <span>ALARM PLAYING!</span>
+          <div className="flex items-center gap-2 font-bold animate-pulse text-lg">
+            <BellRing className="h-6 w-6" />
+            <span>ALARM PLAYING! WEBSITE CHANGE DETECTED!</span>
           </div>
           <button
-            onClick={stopAudioAlert}
-            className="px-4 py-1.5 bg-white text-red-600 text-sm font-bold rounded-md hover:bg-red-50 transition-colors shadow-sm"
+            onClick={stopAudioAndResume}
+            disabled={resumingTracking}
+            className="px-6 py-2 bg-white text-red-600 text-sm font-bold rounded-md hover:bg-red-50 transition-colors shadow-lg border-2 border-red-800 disabled:opacity-50"
           >
-            Stop Alarm
+            {resumingTracking ? 'Resuming...' : 'Stop & Resume Tracking'}
           </button>
         </div>
       )}
@@ -343,6 +377,25 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Tracking Controls */}
+        <div className={`p-4 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-4 ${status?.isTracking ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`h-3 w-3 rounded-full ${status?.isTracking ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="font-bold text-lg">
+              Status: {status?.isTracking ? 'TRACKING ACTIVE' : 'TRACKING PAUSED - ACTION REQUIRED'}
+            </span>
+          </div>
+          {!status?.isTracking && (
+            <button
+              onClick={stopAudioAndResume}
+              disabled={resumingTracking}
+              className="px-4 py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+            >
+              Resume Tracking
+            </button>
+          )}
+        </div>
+
         {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatusCard

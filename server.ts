@@ -97,6 +97,17 @@ async function startServer() {
     }
   });
 
+  app.post('/api/resume-tracking', async (req, res) => {
+    try {
+      await updateStatus({ isTracking: true });
+      await addLog('SYSTEM', 'Tracking resumed manually');
+      res.json({ success: true, message: 'Tracking resumed' });
+    } catch (error) {
+      console.error('Failed to resume tracking:', error);
+      res.status(500).json({ error: 'Failed to resume tracking' });
+    }
+  });
+
   app.get('/api/vapidPublicKey', (req, res) => {
     res.send(vapidPublicKey);
   });
